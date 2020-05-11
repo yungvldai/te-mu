@@ -13,7 +13,8 @@
 
 typedef enum {
 	MAIN = 0,
-	HOOKS = 1
+	HOOKS = 1,
+	CREDITS = 2
 } ViewMode;
 
 typedef enum {
@@ -22,10 +23,14 @@ typedef enum {
 	MAX80 = 80
 } LineType;
 
+long long delays[] = { 1000, 500, 100, 60000, 3600000 };
+
 typedef enum {
-	X1 = 3600, 
-	X2 = 60, 
-	X3 = 1
+	X1 = 0, 
+	X2 = 1, 
+	X3 = 2,
+	M = 3,
+	H = 4
 } UpdateSpeed;
 
 int values_for_chart[CHART_W];
@@ -46,9 +51,17 @@ timestamp debounce_b = 0;
 timestamp debounce_c = 0;
 timestamp debounce_d = 0;
 
-UpdateSpeed usp = X3;
+UpdateSpeed usp = X1;
 void change_upd_speed(void) {
 	if (usp == X3) {
+		usp = M;
+		return;
+	}
+	if (usp == M) {
+		usp = H;
+		return;
+	}
+	if (usp == H) {
 		usp = X1;
 		return;
 	}
@@ -93,6 +106,10 @@ void change_view_mode(void) {
 		return;
 	}
 	if (vm == HOOKS) {
+		vm = CREDITS;
+		return;
+	}
+	if (vm == CREDITS) {
 		vm = MAIN;
 		return;
 	}
@@ -123,7 +140,7 @@ typedef struct {
 } hook;
 
 hook hooks[HOOKS_N];
-char hook_m_ptr = 0;
+unsigned char hook_m_ptr = 0;
 char hook_edit_stage = 0;
 
 char port_status[PORT_SIZE] = {0, 0, 0, 0};
@@ -175,15 +192,30 @@ void handle_hooks(int t_value) {
 } 
 
 int main(void) {
+	dt_init();
 	lcd_init();
 	io_init();
 	clock_init();
 	hooks_init();
 	
-	hooks[0].port = X;
-	hooks[0].act = set;
-	hooks[0].op = eq;
-	hooks[0].value = 24;
+	/* 
+	 * Initial conversion  
+	 */ 
+	 
+	dt_convert();
+	
+	lcd_clear();
+	lcd_line(22, 28, 61, 28, BLACK);
+	lcd_line(22, 31, 61, 31, BLACK);
+	lcd_line(22, 28, 22, 31, BLACK);
+	lcd_line(61, 28, 61, 31, BLACK);
+	lcd_put_string(12, 16, "One moment", BLACK);
+	
+	for (int i = 0; i < 40; i++) {
+		lcd_line(i + 22, 29, i + 22, 30, BLACK);
+		lcd_update();
+		_delay_ms(16);
+	}
 
 	while (1) {
 		_delay_ms(10);
@@ -209,7 +241,7 @@ int main(void) {
 		 * Value update with chosen period
 		 */
 		
-		if (clock() - last_upd >= ((usp * 1000) - CYCLE_CORRECTION)) {
+		if (clock() - last_upd >= (delays[usp] - CYCLE_CORRECTION)) {
 			shown_value = actual_t;
  			add_new_chart_value(shown_value);
 			last_upd = clock();
@@ -293,6 +325,13 @@ int main(void) {
 			}
 			
 			draw_hook_ptr(hook_m_ptr + 1, hook_edit_stage);
+		}
+		
+		if (vm == CREDITS) {
+			lcd_put_string(1, 1, "Credits", BLACK);
+			lcd_put_string(1, 16, "Ivanov Vlad", BLACK);
+			lcd_put_string(1, 25, "Kurapov Ivan", BLACK);
+			lcd_put_string(1, 40, "ITMO, 2020", BLACK);
 		}
 		
 		lcd_update();
@@ -405,6 +444,16 @@ void draw_current_value(int value) {
 }
 
 void draw_update_speed_indicator(UpdateSpeed us) {
+	if (us == H) {
+		lcd_draw(small_h, 62, 41, 3, 5, BLACK);
+		return;
+	}
+	
+	if (us == M) {
+		lcd_draw(small_m, 62, 41, 5, 5, BLACK);
+		return;
+	}
+
 	lcd_line(62, 43, 62, 45, BLACK);
 	lcd_line(63, 43, 63, 45, BLACK);
 	if (us == X1) return;

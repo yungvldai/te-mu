@@ -56,5 +56,16 @@ const byte deg_char[] EEMEM = {
 	0b111001
 };
 
+const byte small_h[] EEMEM = {
+	0b11101101,
+	0b1011011
+};
+
+const byte small_m[] EEMEM = {
+	0b10111111,
+	0b11010110,
+	0b101011010,
+	0b10101
+};
 
 #endif

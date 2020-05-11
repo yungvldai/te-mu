@@ -12,7 +12,7 @@
 #define NOID 0xCC
 #define T_CONVERT 0x44
 #define READ_DATA 0xBE
-#define CONV_TIME 750
+#define CONV_TIME 100
 #define WRITE_SCRATCHPAD 0x4E
 
 char dt_test(void) {
@@ -72,6 +72,13 @@ void dt_tx8(unsigned char b) {
 			dt_tx(0);
 		}
 	}
+}
+
+void dt_init(void) {
+	dt_tx8(WRITE_SCRATCHPAD);
+	dt_tx8(0xFF);
+	dt_tx8(0xFF);
+	dt_tx8(0x00);
 }
 
 void dt_convert(void) {
