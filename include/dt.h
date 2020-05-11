@@ -104,22 +104,4 @@ char t_sign(int t) {
 	return (t >> 15) & 1;
 }
 
-float n_pow2(int power) {
-	float res = 1;
-	while(power--) res /= 2;
-	return res;
-}
-
-float t_float_part(int t) {
-	char p = t & 0b1111;
-	char i = 1;
-	float sum = 0.0;
-	while (p > 0) {
-		if (p & 1) sum += n_pow2(i);
-		p >>= 1;
-		i++;
-	}
-	return sum;
-}
-
 # endif

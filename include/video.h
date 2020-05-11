@@ -47,19 +47,19 @@ void wait(void) {
 }
 
 void lcd_send_data(byte data) {
-	LCD_PORT &= ~(_BV(LCD_CE_PIN));
-	LCD_PORT |= _BV(LCD_DC_PIN);
+	LCD_PORT &= ~(1 << LCD_CE_PIN);
+	LCD_PORT |= (1 << LCD_DC_PIN);
 	SPDR = data;
 	while ((SPSR & 0x80) != 0x80);
-	LCD_PORT |= _BV(LCD_CE_PIN);
+	LCD_PORT |= (1 << LCD_CE_PIN);
 }
 
 void lcd_send_cmd(byte data) {
-	LCD_PORT &= ~(_BV(LCD_CE_PIN));
-	LCD_PORT &= ~(_BV(LCD_DC_PIN));
+	LCD_PORT &= ~(1 << LCD_CE_PIN);
+	LCD_PORT &= ~(1 << LCD_DC_PIN);
 	SPDR = data;
 	while ((SPSR & 0x80) != 0x80);
-	LCD_PORT |= _BV(LCD_CE_PIN);
+	LCD_PORT |= (1 << LCD_CE_PIN);
 }
 
 void lcd_clear(void) {
@@ -112,14 +112,14 @@ void lcd_update(void) {
 }
 
 void lcd_init(void) {
-	LCD_PORT |= _BV(LCD_RST_PIN);
-	LCD_DDR |= _BV(LCD_RST_PIN) | _BV(LCD_DC_PIN) | _BV(LCD_CE_PIN) | _BV(SPI_MOSI_PIN) | _BV(SPI_CLK_PIN);
+	LCD_PORT |= (1 << LCD_RST_PIN);
+	LCD_DDR |= (1 << LCD_RST_PIN) | (1 << LCD_DC_PIN) | (1 << LCD_CE_PIN) | (1 << SPI_MOSI_PIN) | (1 << SPI_CLK_PIN);
 	wait();
-	LCD_PORT &= ~(_BV(LCD_RST_PIN));
+	LCD_PORT &= ~(1 << LCD_RST_PIN);
 	wait();
-	LCD_PORT |= _BV(LCD_RST_PIN);
+	LCD_PORT |= (1 << LCD_RST_PIN);
 	SPCR = 0x50;
-	LCD_PORT |= _BV(LCD_CE_PIN);
+	LCD_PORT |= (1 << LCD_CE_PIN);
 	lcd_send_cmd(0x21);
 	lcd_send_cmd(0xC8);
 	lcd_send_cmd(0x06);
@@ -243,19 +243,11 @@ int lcd_put_string(byte x0, byte y0, char *s, Color c) {
 	return chars_printed;
 }
 
-void lcd_draw_v2(byte *texture, byte x, byte y, byte w, byte h, Color c) {
+void lcd_draw(const byte *texture, byte x, byte y, byte w, byte h, Color c) {
 	for (int j = 0; j < h; j++) {
 		for (int i = 0; i < w; i++) {
 			char addr = j * w + i; 
-			if (texture[addr / 8] >> (addr % 8) & 1) lcd_pixel(x + i, y + j, c);
-		}
-	}
-}
-
-void lcd_draw(byte *texture, byte x, byte y, byte w, byte h, Color c) {
-	for (int i = 0; i < w; i++) {
-		for (int j = 0; j < h; j++) {
-			if (texture[j * w + i] & 1) lcd_pixel(x + i, y + j, c);
+			if (eeprom_read_byte(&texture[addr / 8]) >> (addr % 8) & 1) lcd_pixel(x + i, y + j, c);
 		}
 	}
 }

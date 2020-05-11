@@ -36,7 +36,7 @@ void draw_update_speed_indicator(UpdateSpeed);
 void draw_current_value(int);
 void draw_chart(LineType);
 void draw_bar(LineType, int);
-void draw_hook_ptr(char);
+void draw_hook_ptr(char, unsigned char);
 
 void clear_chart(void);
 void add_new_chart_value(int);
@@ -99,21 +99,17 @@ void change_view_mode(void) {
 }
 
 typedef enum {
-	set = 0,
-	res = 1,
-	tog = 2,
-	sal = 3,
-	ral = 4,
-	tal = 5,
-	nop = 6
+	set = 1,
+	res = 2,
+	nop = 0
 } Action;
 
 typedef enum {
-	eq = 1,
-	lt = 2,
-	gt = 3,
-	lte = 4,
-	gte = 5
+	eq = 0,
+	lt = 1,
+	gt = 2,
+	lte = 3,
+	gte = 4
 } CmpOperator;
 
 typedef struct {
@@ -128,25 +124,71 @@ typedef struct {
 
 hook hooks[HOOKS_N];
 char hook_m_ptr = 0;
+char hook_edit_stage = 0;
+
+char port_status[PORT_SIZE] = {0, 0, 0, 0};
 
 void hooks_init(void) {
 	for (int i = 0; i < HOOKS_N; i++) {
-		hooks[i].act = nop;
 		hooks[i].port = Z;
-		hooks[i].op = eq;
 	}
 }
 
+void clear_port(void) {
+	for (int i = 0; i < PORT_SIZE; i++) port_status[i] = 0;
+}
+
+void apply_port(void) {
+	for (int i = 0; i < PORT_SIZE; i++) io_write(i + 4, port_status[i]);
+}
+
 void print_hook(int);
+
+void do_action(Port prt, Action ac) {
+	if (ac == set) port_status[prt - 4] = 1;
+	if (ac == res) port_status[prt - 4] = 0;
+}
+
+void handle_hooks(int t_value) {
+	int value = 0;
+	if (t_sign(t_value)){
+		value = -t_integer_part(~t_value);
+	} else {
+		value = t_integer_part(t_value);
+	}
+
+	clear_port();
+	for (int i = 0; i < HOOKS_N; i++) {
+		hook th = hooks[i];
+		
+		char cond = (th.op == eq && value == th.value) || 
+					(th.op == lt && value < th.value) ||
+					(th.op == gt && value > th.value) ||
+					(th.op == lte && value <= th.value) ||
+					(th.op == gte && value >= th.value);
+		
+		if (cond) {
+			do_action(th.port, th.act);
+		}
+	}
+	apply_port();
+} 
 
 int main(void) {
 	lcd_init();
 	io_init();
 	clock_init();
 	hooks_init();
+	
+	hooks[0].port = X;
+	hooks[0].act = set;
+	hooks[0].op = eq;
+	hooks[0].value = 24;
 
 	while (1) {
 		_delay_ms(10);
+		
+		handle_hooks(shown_value);
 		
 		/* 
 		 * Non-blocking temp conversion
@@ -198,10 +240,8 @@ int main(void) {
 			draw_values_line(ltp);
 			draw_update_speed_indicator(usp);
 			draw_bar(ltp, shown_value);
-			//draw_current_value(shown_value);
-			//draw_chart(ltp);
-			
-			lcd_draw_v2(_tball, 10, 10, 8, 8, BLACK);
+			draw_current_value(shown_value);
+			draw_chart(ltp);
 		}
 		
 		if (vm == HOOKS) {
@@ -211,15 +251,48 @@ int main(void) {
 			}
 			
 			if (io_read(A) && clock() - debounce_a > DEBOUNCE_T) {
-				if (hook_m_ptr > 0) hook_m_ptr--;
+				if (hook_edit_stage == 0) {
+					if (hook_m_ptr > 0) hook_m_ptr--;
+				}
+				if (hook_edit_stage == 1) {
+					if (hooks[hook_m_ptr].op < 4) hooks[hook_m_ptr].op++;
+				}
+				if (hook_edit_stage == 2) {
+					if (hooks[hook_m_ptr].value < 99) hooks[hook_m_ptr].value++;
+				}
+				if (hook_edit_stage == 3) {
+					if (hooks[hook_m_ptr].act < 2) hooks[hook_m_ptr].act++;
+				}
+				if (hook_edit_stage == 4) {
+					if (hooks[hook_m_ptr].port < W) hooks[hook_m_ptr].port++;
+				}
 				debounce_a = clock();
 			}
 			if (io_read(B) && clock() - debounce_b > DEBOUNCE_T) {
-				if (hook_m_ptr < 3) hook_m_ptr++;
+				if (hook_edit_stage == 0) {
+					if (hook_m_ptr < 3) hook_m_ptr++;
+				}
+				if (hook_edit_stage == 1) {
+					if (hooks[hook_m_ptr].op > 0) hooks[hook_m_ptr].op--;
+				}
+				if (hook_edit_stage == 2) {
+					if (hooks[hook_m_ptr].value > -55) hooks[hook_m_ptr].value--;
+				}
+				if (hook_edit_stage == 3) {
+					if (hooks[hook_m_ptr].act > 0) hooks[hook_m_ptr].act--;
+				}
+				if (hook_edit_stage == 4) {
+					if (hooks[hook_m_ptr].port > Z) hooks[hook_m_ptr].port--;
+				}
 				debounce_b = clock();
 			}
+			if (io_read(C) && clock() - debounce_c > DEBOUNCE_T) {
+				hook_edit_stage++;
+				if ((hook_edit_stage > 3 && hooks[hook_m_ptr].act == nop) || (hook_edit_stage > 4 && hooks[hook_m_ptr].act != nop)) hook_edit_stage = 0;
+				debounce_c = clock();
+			}
 			
-			draw_hook_ptr(hook_m_ptr + 1);
+			draw_hook_ptr(hook_m_ptr + 1, hook_edit_stage);
 		}
 		
 		lcd_update();
@@ -228,72 +301,35 @@ int main(void) {
 	return 0;
 }
 
-void draw_hook_ptr(char ptr) {
+const unsigned char* edit_stages[][2] = {
+	{ 0, 83 },
+	{ 0, 13 }, 
+	{ 17, 36 },
+	{ 41, 60 },
+	{ 67, 73 }
+};
+
+void draw_hook_ptr(char ptr, unsigned char stage) {
 	for (int i = 2; i < 11; i++) {
-		lcd_line(0, ptr * 9 + i, 83, ptr * 9 + i, INVERT);
+		lcd_line(edit_stages[stage][0], ptr * 9 + i, edit_stages[stage][1], ptr * 9 + i, INVERT);
 	}
 }
 
+char* cmps[] = {"=", "<", ">", "<=", ">="};
+char* acts[] = {"nop", "set", "res"};
+char* ports[] = {"Z", "Y", "X", "W"};
+
 void print_hook(int index) {
-/*
-	byte py = (index + 1) * 9 + 3;	
-	
-	if (hooks[index].op == eq) {
-		lcd_put_string(1, py, "=", BLACK);
-	}
-	if (hooks[index].op == lt) {
-		lcd_put_string(1, py, "<", BLACK);
-	}
-	if (hooks[index].op == gt) {
-		lcd_put_string(1, py, ">", BLACK);
-	}
-	if (hooks[index].op == lte) {
-		lcd_put_string(1, py, "<=", BLACK);
-	}
-	if (hooks[index].op == gte) {
-		lcd_put_string(1, py, ">=", BLACK);
-	}
-	
+	byte py = (index + 1) * 9 + 3;
+	lcd_put_string(1, py, cmps[hooks[index].op], BLACK);
 	int value = hooks[index].value;
 	char buf[5];
 	itoa(value, buf, 10);
 	lcd_put_string(18, py, buf, BLACK);
-	if (hooks[index].act == set) {
-		lcd_put_string(42, py, "set", BLACK);
+	lcd_put_string(42, py, acts[hooks[index].act], BLACK);
+	if (hooks[index].act != nop) {
+		lcd_put_string(68, py, ports[hooks[index].port - 4], BLACK);
 	}
-	if (hooks[index].act == res) {
-		lcd_put_string(42, py, "res", BLACK);
-	}
-	if (hooks[index].act == tog) {
-		lcd_put_string(42, py, "tog", BLACK);
-	}
-	if (hooks[index].act == sal) {
-		lcd_put_string(42, py, "sal", BLACK);
-	}
-	if (hooks[index].act == ral) {
-		lcd_put_string(42, py, "ral", BLACK);
-	}
-	if (hooks[index].act == tal) {
-		lcd_put_string(42, py, "tal", BLACK);
-	}
-	if (hooks[index].act == nop) {
-		lcd_put_string(42, py, "nop", BLACK);
-	}
-	
-	if (hooks[index].port == Z) {
-		lcd_put_char(68, py, 'Z', BLACK);
-	}
-	if (hooks[index].port == Y) {
-		lcd_put_char(68, py, 'Y', BLACK);
-	}
-	if (hooks[index].port == X) {
-		lcd_put_char(68, py, 'X', BLACK);
-	}
-	if (hooks[index].port == W) {
-		lcd_put_char(68, py, 'W', BLACK);
-	}
-	*/
-
 }
 
 int sc_top(LineType lt, int value) {
@@ -361,8 +397,7 @@ void draw_current_value(int value) {
 	lcd_print_ptr += (6 * chars_printed);
 	lcd_put_char(lcd_print_ptr, py, '.', BLACK);
 	lcd_print_ptr += 6;
-	itoa((int)(t_float_part(value) * 10.0), buf, 10);
-	chars_printed = lcd_put_string(lcd_print_ptr, py, buf, BLACK);
+	chars_printed = lcd_put_string(lcd_print_ptr, py, "0", BLACK);
 	lcd_print_ptr += (6 * chars_printed);
 	lcd_draw(deg_char, lcd_print_ptr, py, 5, 3, BLACK);
 	lcd_print_ptr += 6;

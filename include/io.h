@@ -8,9 +8,10 @@
 #define O_DDR DDRD
 #define IO_PORT PORTD
 #define IO_PIN PINC
+#define PORT_SIZE 4
 
 typedef enum { A = 0, B = 1, C = 2, D = 3 } Button;
-typedef enum { Z = 4, X = 5, Y = 6, W = 7 } Port;
+typedef enum { Z = 4, Y = 5, X = 6, W = 7 } Port;
 
 void io_init(void) { 
 	I_DDR = 0;
