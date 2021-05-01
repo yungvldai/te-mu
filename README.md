@@ -5,5 +5,5 @@
 
 # Статьи
 
- - https://yungvldai.ru/article/cifrovoy-termometr-ch.-1
- - https://yungvldai.ru/article/cifrovoy-termometr-ch.-2
+ - [Часть 1 (software/firmware)](https://yungvldai.ru/article/cifrovoy-termometr-ch.-1)
+ - [Часть 2 (hardware)](https://yungvldai.ru/article/cifrovoy-termometr-ch.-2)
