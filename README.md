@@ -1,6 +1,7 @@
 # te-mu
-Маленький цифровой термометр
+Цифровой термометр
 
+[![te-mu](https://i.ibb.co/5hSw4F8/cover.jpg)](https://yungvldai.ru/)
 
 # Статьи
 
